@@ -1,9 +1,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
-	"github.com/joho/godotenv"
 	"os"
+
+	"github.com/joho/godotenv"
+	"github.com/gofiber/fiber/v3"
+
+	"KeDuBak/database"
 )
 
 func error_hanling(MongoURL *string, SECRET *string) int {
@@ -28,6 +33,12 @@ func main() {
 	if error_hanling(&MongoURL, &SECRET) == -1 {
 		os.Exit(1)
 	}
-	fmt.Printf("Mongo URL : %s\n", MongoURL)
-	fmt.Printf("Secret : %s\n", SECRET)
+	app := fiber.New()
+	client_mongo := database.ConnectDB(MongoURL)
+	defer func() {
+		if err := client_mongo.Disconnect(context.TODO()); err != nil {
+			panic(err)
+		}
+	}()
+	app.Listen(":8080")
 }
