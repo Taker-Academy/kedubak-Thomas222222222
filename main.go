@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/joho/godotenv"
 	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/cors"
+	"github.com/joho/godotenv"
 
 	"KeDuBak/database"
+	"KeDuBak/routes"
 )
 
 func error_hanling(MongoURL *string, SECRET *string) int {
@@ -40,5 +42,7 @@ func main() {
 			panic(err)
 		}
 	}()
+	app.Use(cors.New())
+	routes.Auth(app, client_mongo)
 	app.Listen(":8080")
 }

@@ -9,7 +9,6 @@ import (
 )
 
 func ConnectDB(MongoURL string) *mongo.Client {
-	fmt.Println(MongoURL)	
 	serverAPI := options.ServerAPI(options.ServerAPIVersion1)
 	opts := options.Client().ApplyURI(MongoURL).SetServerAPIOptions(serverAPI)
 	client, err := mongo.Connect(context.TODO(), opts)
