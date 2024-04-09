@@ -1,7 +1,7 @@
 package routes
 
 import (
-	"KeDuBak/hashages"
+	"KeDuBak/hashage"
 	"KeDuBak/jwt_token"
 	"KeDuBak/structures"
 	"context"
@@ -17,7 +17,7 @@ func Register(app *fiber.App, client_mongo *mongo.Client) {
 	app.Post("/auth/register", func(c *fiber.Ctx) error {
 		var dataRequest structures.User
 		var dataUsers structures.User
-		var userCollection *mongo.Collection
+		var usersCollection *mongo.Collection
 
 		if c.BodyParser(&dataRequest) != nil && dataRequest.Email != "" &&
 			dataRequest.Password != "" && dataRequest.FirstName != "" &&
@@ -27,16 +27,16 @@ func Register(app *fiber.App, client_mongo *mongo.Client) {
 				"error": "Mauvaise requête, paramètres manquants ou invalides",
 			})
 		}
-		userCollection = client_mongo.Database("kedubak").Collection("User")
+		usersCollection = client_mongo.Database("kedubak").Collection("User")
 		ctx := context.Background()
 		filter := bson.M{"email": dataRequest.Email}
-		if userCollection.FindOne(ctx, filter).Decode(&dataUsers) == nil {
+		if usersCollection.FindOne(ctx, filter).Decode(&dataUsers) == nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"ok":    false,
 				"error": "Utilisateur déjà existant",
 			})
 		}
-		hash, errHash := hashages.HashPassword(dataRequest.Password)
+		hash, errHash := hashage.HashPassword(dataRequest.Password)
 		if errHash != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"ok":    false,
@@ -46,7 +46,7 @@ func Register(app *fiber.App, client_mongo *mongo.Client) {
 		dataRequest.Password = hash
 		dataRequest.CreateAt = time.Now()
 		dataRequest.LastUpVote = time.Now().Add(-1 * time.Minute)
-		user, err := userCollection.InsertOne(ctx, dataRequest)
+		user, err := usersCollection.InsertOne(ctx, dataRequest)
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"ok":    false,
@@ -77,9 +77,50 @@ func Register(app *fiber.App, client_mongo *mongo.Client) {
 
 func Login(app *fiber.App, client_mongo *mongo.Client) {
 	app.Post("/auth/login", func(c *fiber.Ctx) error {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"ok":    false,
-			"error": "Erreur interne du serveur",
+		var dataRequest structures.User
+		var dataUsers structures.User
+		var usersCollection *mongo.Collection
+
+		if c.BodyParser(&dataRequest) != nil && dataRequest.Email != "" &&
+			dataRequest.Password != "" {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"ok":    false,
+				"error": "Mauvaise requête, paramètres manquants ou invalides",
+			})
+		}
+		usersCollection = client_mongo.Database("kedubak").Collection("User")
+		ctx := context.Background()
+		filter := bson.M{"email": dataRequest.Email}
+		if usersCollection.FindOne(ctx, filter).Decode(&dataUsers) != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"ok":    false,
+				"error": "Utilisateur inexistant",
+			})
+		}
+		if hashage.ComparePasswordWithHash(dataUsers.Password, dataRequest.Password) == -1 {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"ok":    false,
+				"error": "Mot de passe incorrect",
+			})
+		}
+		userID := dataUsers.ID.Hex()
+		token := jwt_token.GenerateToken(userID)
+		if token == "" {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"ok":    false,
+				"error": "Erreur interne du serveur",
+			})
+		}
+		return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+			"ok": true,
+			"data": fiber.Map{
+				"token": token,
+				"user": fiber.Map{
+					"email":     dataUsers.Email,
+					"firstName": dataUsers.FirstName,
+					"lastName":  dataUsers.LastName,
+				},
+			},
 		})
 	})
 }
