@@ -1,4 +1,4 @@
-package strucutres
+package structures
 
 import (
 	"time"
