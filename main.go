@@ -42,6 +42,6 @@ func main() {
 	}()
 	app.Use(cors.New())
 	routes.Auth(app, client_mongo)
-	routes.Me(app, client_mongo)
+	routes.User(app, client_mongo)
 	app.Listen(":8080")
 }
