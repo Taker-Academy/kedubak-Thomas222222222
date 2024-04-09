@@ -111,7 +111,7 @@ func Login(app *fiber.App, client_mongo *mongo.Client) {
 				"error": "Erreur interne du serveur",
 			})
 		}
-		return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{
 			"ok": true,
 			"data": fiber.Map{
 				"token": token,

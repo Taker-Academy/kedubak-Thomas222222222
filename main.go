@@ -13,15 +13,14 @@ import (
 	"KeDuBak/routes"
 )
 
-func error_hanling(MongoURL *string, SECRET *string) int {
-	err := godotenv.Load()
+func error_hanling(MongoURL *string) int {
+	err := godotenv.Load(".env")
 	if err != nil {
 		fmt.Print("Error : file .env not found\n")
 		return -1
 	}
 	*MongoURL = os.Getenv("MONGO_URL")
-	*SECRET = os.Getenv("SECRET")
-	if *SECRET == "" || *MongoURL == "" {
+	if *MongoURL == "" {
 		fmt.Print("Error : missing environment variables\n")
 		return -1
 	}
@@ -30,9 +29,8 @@ func error_hanling(MongoURL *string, SECRET *string) int {
 
 func main() {
 	var MongoURL string
-	var SECRET string
 
-	if error_hanling(&MongoURL, &SECRET) == -1 {
+	if error_hanling(&MongoURL) == -1 {
 		os.Exit(1)
 	}
 	app := fiber.New()
@@ -44,5 +42,6 @@ func main() {
 	}()
 	app.Use(cors.New())
 	routes.Auth(app, client_mongo)
+	routes.Me(app, client_mongo)
 	app.Listen(":8080")
 }
