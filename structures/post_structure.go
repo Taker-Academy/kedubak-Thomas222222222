@@ -7,9 +7,9 @@ import (
 )
 
 type Comments struct {
-	ID        int    `bson:"id" json:"id"`
-	FirstName string `bson:"firstName" json:"firstName"`
-	Content   string `bson:"content" json:"content"`
+	ID        primitive.ObjectID    `bson:"id" json:"id"`
+	FirstName string 				`bson:"firstName" json:"firstName"`
+	Content   string 				`bson:"content" json:"content"`
 }
 
 type Post struct {
