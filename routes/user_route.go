@@ -106,6 +106,22 @@ func Delete(app *fiber.App, client_mongo *mongo.Client) {
 				"error": "Erreur interne du serveur",
 			})
 		}
+		usersCollection := client_mongo.Database("kedubak").Collection("User")
+		objectID, errID := primitive.ObjectIDFromHex(userID)
+		if errID != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"ok":    false,
+				"error": "Erreur interne du serveur",
+			})
+		}
+		ctx := context.Background()
+		filter := bson.M{"_id": objectID}
+		if _, errDelete := usersCollection.DeleteOne(ctx, filter); errDelete != nil {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"ok":		false,
+				"error":	"Utilisateur non trouvé",
+			})
+		}
 		return c.Status(fiber.StatusOK).JSON(fiber.Map{
 			"ok": true,
 			"data": fiber.Map{
