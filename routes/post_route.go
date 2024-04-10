@@ -3,13 +3,51 @@ package routes
 import (
 	"KeDuBak/jwt_token"
 	"KeDuBak/structures"
+
 	"context"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
+
+func DetailsPost(app *fiber.App, client_mongo *mongo.Client) {
+	app.Get("/post/:id", func(c *fiber.Ctx) error {
+		var post structures.Post
+		var errToken int
+
+		token := c.Get("Authorization")
+		if _, errToken = jwt_token.CheckToken(token, client_mongo); errToken == -1 {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"ok":    false,
+				"error": "Mauvais token JWT",
+			})
+		}
+		objectID, errObjectID := primitive.ObjectIDFromHex(c.Params("id"))
+		if errObjectID != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"ok":    false,
+				"error": "Mauvaise requête, paramètres manquants ou invalides",
+			})
+		}
+		postCollection := client_mongo.Database("kedubak").Collection("Post")
+		ctx := context.Background()
+		filter := bson.M{"_id": objectID}
+		err := postCollection.FindOne(ctx, filter).Decode(&post)
+		if err != nil {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"ok":    false,
+				"error": "Élément non trouvé",
+			})
+		}
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{
+			"ok":   true,
+			"data": post,
+		})
+	})
+}
 
 func DisplayMe(app *fiber.App, client_mongo *mongo.Client) {
 	app.Get("/post/me", func(c *fiber.Ctx) error {
@@ -156,6 +194,7 @@ func Create(app *fiber.App, client_mongo *mongo.Client) {
 
 func Post(app *fiber.App, client_mongo *mongo.Client) {
 	DisplayMe(app, client_mongo)
+	DetailsPost(app, client_mongo)
 	Display(app, client_mongo)
 	Create(app, client_mongo)
 }
