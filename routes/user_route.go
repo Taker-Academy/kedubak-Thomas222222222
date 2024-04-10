@@ -4,6 +4,7 @@ import (
 	"KeDuBak/hashage"
 	"KeDuBak/jwt_token"
 	"KeDuBak/structures"
+	"fmt"
 
 	"context"
 
@@ -142,6 +143,28 @@ func Edit(app *fiber.App, client_mongo *mongo.Client) {
 	})
 }
 
+func DeletePost(userID string, client_mongo *mongo.Client) int {
+	postCollection := client_mongo.Database("kedubak").Collection("Post")
+	ctx := context.Background()
+	cursor, err := postCollection.Find(ctx, bson.M{})
+	if err != nil {
+		return -1
+	}
+	for cursor.Next(ctx) {
+		var post structures.Post
+		if err := cursor.Decode(&post); err != nil {
+			return -1
+		}
+		filter := bson.M{"_id": post.ID}
+		if string(post.UserID) == userID {
+			if _, errDelete := postCollection.DeleteOne(ctx, filter); errDelete != nil {
+				return -1
+			}
+		}
+	}
+	return 0
+}
+
 func Delete(app *fiber.App, client_mongo *mongo.Client) {
 	app.Delete("/user/remove", func(c *fiber.Ctx) error {
 		var dataUser structures.User
@@ -171,6 +194,12 @@ func Delete(app *fiber.App, client_mongo *mongo.Client) {
 		}
 		ctx := context.Background()
 		filter := bson.M{"_id": objectID}
+		if DeletePost(userID, client_mongo) == -1 {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"ok":    false,
+				"error": "Utilisateur non trouvé",
+			})
+		}
 		if _, errDelete := usersCollection.DeleteOne(ctx, filter); errDelete != nil {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 				"ok":    false,
