@@ -155,6 +155,108 @@ func DeleteSpecificPost(app *fiber.App, client_mongo *mongo.Client) {
 	})
 }
 
+func CheckIfAlreadyVoted(list []string, userID string) int {
+	for _, str := range list {
+		if str == userID {
+			return 1
+		}
+	}
+	return 0
+}
+
+func CheckLastVote(list []string, objectID primitive.ObjectID, client_mongo *mongo.Client) int {
+	var dataUser structures.User
+
+	usersCollection := client_mongo.Database("kedubak").Collection("User")
+	ctx := context.Background()
+	filter := bson.M{"_id": objectID}
+	if err := usersCollection.FindOne(ctx, filter).Decode(&dataUser); err != nil {
+		return -1
+	}
+	timeActuel := time.Now()
+	difference := timeActuel.Sub(dataUser.LastUpVote)
+	if difference >= time.Minute {
+		updateUser := bson.M{
+			"$set": bson.M{
+				"lastUpVote": time.Now(),
+			},
+		}
+		if _, err := usersCollection.UpdateOne(ctx, filter, updateUser); err != nil {
+			return -1
+		}
+		return 0
+	}
+	return -1
+}
+
+func Vote(app *fiber.App, client_mongo *mongo.Client) {
+	app.Post("/post/vote/:id", func(c *fiber.Ctx) error {
+		var userID string
+		var post structures.Post
+		var errToken int
+
+		token := c.Get("Authorization")
+		if userID, errToken = jwt_token.CheckToken(token, client_mongo); errToken == -1 {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"ok":    false,
+				"error": "Mauvais token JWT",
+			})
+		}
+		objectID, errObjectID := primitive.ObjectIDFromHex(c.Params("id"))
+		if errObjectID != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"ok":    false,
+				"error": "Mauvaise requête, paramètres manquants ou invalides",
+			})
+		}
+		postCollection := client_mongo.Database("kedubak").Collection("Post")
+		ctx := context.Background()
+		filter := bson.M{"_id": objectID}
+		err := postCollection.FindOne(ctx, filter).Decode(&post)
+		if err != nil {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"ok":    false,
+				"error": "Élément non trouvé",
+			})
+		}
+		if CheckIfAlreadyVoted(post.UpVotes, userID) == 1 {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+				"ok":    false,
+				"error": "Vous avez déjà voté pour ce post",
+			})
+		}
+		userObjectID, errUserObjectID := primitive.ObjectIDFromHex(userID)
+		if errUserObjectID != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"ok":    false,
+				"error": "Mauvaise requête, paramètres manquants ou invalides",
+			})
+		}
+		if CheckLastVote(post.UpVotes, userObjectID, client_mongo) == -1 {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"ok":    false,
+				"error": "Vous ne pouvez voter que toutes les minutes",
+			})
+		}
+		post.UpVotes = append(post.UpVotes, userID)
+		update := bson.M{
+			"$set": bson.M{
+				"upVotes": post.UpVotes,
+			},
+		}
+		if _, err := postCollection.UpdateOne(ctx, filter, update); err != nil {
+			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+				"ok":    false,
+				"error": "Echec de validation des paramètres",
+			})
+		}		
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{
+			"ok":      true,
+			"message": "post upvoted",
+		})
+	})
+}
+
 func Display(app *fiber.App, client_mongo *mongo.Client) {
 	app.Get("/post", func(c *fiber.Ctx) error {
 		var listPosts []structures.Post
@@ -255,6 +357,7 @@ func Post(app *fiber.App, client_mongo *mongo.Client) {
 	DisplayMe(app, client_mongo)
 	DetailsPost(app, client_mongo)
 	DeleteSpecificPost(app, client_mongo)
+	Vote(app, client_mongo)
 	Display(app, client_mongo)
 	Create(app, client_mongo)
 }
