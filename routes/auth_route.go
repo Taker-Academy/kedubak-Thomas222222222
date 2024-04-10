@@ -19,9 +19,9 @@ func Register(app *fiber.App, client_mongo *mongo.Client) {
 		var dataUsers structures.User
 		var usersCollection *mongo.Collection
 
-		if c.BodyParser(&dataRequest) != nil && dataRequest.Email != "" &&
-			dataRequest.Password != "" && dataRequest.FirstName != "" &&
-			dataRequest.LastName != "" {
+		if c.BodyParser(&dataRequest) != nil || dataRequest.Email == "" ||
+			dataRequest.Password == "" || dataRequest.FirstName == "" ||
+			dataRequest.LastName == "" {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"ok":    false,
 				"error": "Mauvaise requête, paramètres manquants ou invalides",
@@ -81,8 +81,8 @@ func Login(app *fiber.App, client_mongo *mongo.Client) {
 		var dataUsers structures.User
 		var usersCollection *mongo.Collection
 
-		if c.BodyParser(&dataRequest) != nil && dataRequest.Email != "" &&
-			dataRequest.Password != "" {
+		if c.BodyParser(&dataRequest) != nil || dataRequest.Email == "" ||
+			dataRequest.Password == "" {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"ok":    false,
 				"error": "Mauvaise requête, paramètres manquants ou invalides",

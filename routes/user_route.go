@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"KeDuBak/hashage"
 	"KeDuBak/jwt_token"
 	"KeDuBak/structures"
 
@@ -57,6 +58,30 @@ func Me(app *fiber.App, client_mongo *mongo.Client) {
 	})
 }
 
+func CheckValidityOfInfo(c *fiber.Ctx, dataUser *structures.User, usersCollection *mongo.Collection) int {
+	var dataRequest structures.User
+
+	if c.BodyParser(&dataRequest) != nil || dataRequest.Email == "" ||
+		dataRequest.Password == "" {
+		return -1
+	}
+	hash, errHash := hashage.HashPassword(dataRequest.Password)
+	if errHash != nil {
+		return -1
+	}
+	dataUser.Email = dataRequest.Email
+	dataUser.FirstName = dataRequest.FirstName
+	dataUser.LastName = dataRequest.LastName
+	dataUser.Password = hash
+	ctx := context.Background()
+	filter := bson.M{"email": dataRequest.Email}
+	err := usersCollection.FindOne(ctx, filter).Decode(&dataRequest)
+	if err == nil && dataUser.ID != dataRequest.ID {
+		return -1
+	}
+	return 0
+}
+
 func Edit(app *fiber.App, client_mongo *mongo.Client) {
 	app.Put("/user/edit", func(c *fiber.Ctx) error {
 		var dataUser structures.User
@@ -74,6 +99,36 @@ func Edit(app *fiber.App, client_mongo *mongo.Client) {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"ok":    false,
 				"error": "Erreur interne du serveur",
+			})
+		}
+		usersCollection := client_mongo.Database("kedubak").Collection("User")
+		if CheckValidityOfInfo(c, &dataUser, usersCollection) == -1 {
+			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+				"ok":    false,
+				"error": "Echec de validation des paramètres",
+			})
+		}
+		objectID, errID := primitive.ObjectIDFromHex(userID)
+		if errID != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"ok":    false,
+				"error": "Erreur interne du serveur",
+			})
+		}
+		ctx := context.Background()
+		filter := bson.M{"_id": objectID}
+		update := bson.M{
+			"$set": bson.M{
+				"email":     dataUser.Email,
+				"password":  dataUser.Password,
+				"firstName": dataUser.FirstName,
+				"lastName":  dataUser.LastName,
+			},
+		}
+		if _, err := usersCollection.UpdateOne(ctx, filter, update); err != nil {
+			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+				"ok":    false,
+				"error": "Echec de validation des paramètres",
 			})
 		}
 		return c.Status(fiber.StatusOK).JSON(fiber.Map{
@@ -118,8 +173,8 @@ func Delete(app *fiber.App, client_mongo *mongo.Client) {
 		filter := bson.M{"_id": objectID}
 		if _, errDelete := usersCollection.DeleteOne(ctx, filter); errDelete != nil {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-				"ok":		false,
-				"error":	"Utilisateur non trouvé",
+				"ok":    false,
+				"error": "Utilisateur non trouvé",
 			})
 		}
 		return c.Status(fiber.StatusOK).JSON(fiber.Map{
